@@ -27,6 +27,37 @@ class Behat implements \PHPCI\Plugin
     protected $features;
 
     /**
+     * @var string|string[] $ymlConfigFile The path (or array of paths) of an yml config for Behat
+     */
+    protected $ymlConfigFile;
+
+    /**
+     * Try and find the phpunit YML config file.
+     * @param $buildPath
+     * @return null|string
+     */
+    public static function findConfigFile($buildPath)
+    {
+        if (file_exists($buildPath . 'behat.yml')) {
+            return 'behat.yml';
+        }
+
+        if (file_exists($buildPath . 'tests' . DIRECTORY_SEPARATOR . 'behat.yml')) {
+            return 'tests' . DIRECTORY_SEPARATOR . 'behat.yml';
+        }
+
+        if (file_exists($buildPath . 'behat.yml.dist')) {
+            return 'behat.yml.dist';
+        }
+
+        if (file_exists($buildPath . 'tests/behat.yml.dist')) {
+            return 'tests' . DIRECTORY_SEPARATOR . 'behat.yml.dist';
+        }
+
+        return null;
+    }
+
+    /**
      * Standard Constructor
      *
      * $options['directory'] Output Directory. Default: %BUILDPATH%
@@ -50,6 +81,10 @@ class Behat implements \PHPCI\Plugin
             $this->executable = $this->phpci->findBinary('behat');
         }
 
+        if (isset($options['config'])) {
+            $this->ymlConfigFile = $options['config'];
+        }
+
         if (!empty($options['features'])) {
             $this->features = $options['features'];
         }
@@ -71,8 +106,13 @@ class Behat implements \PHPCI\Plugin
             return false;
         }
 
-        $success = $this->phpci->executeCommand($behat . ' %s', $this->features);
-        chdir($curdir);
+        // Run any config files first. This can be either a single value or an array.
+        if ($this->ymlConfigFile !== null) {
+            $success = $this->runConfigFile($this->ymlConfigFile);
+        } else {
+            $success = $this->phpci->executeCommand($behat . ' %s', $this->features);
+            chdir($curdir);
+        }
 
         list($errorCount, $data) = $this->parseBehatOutput();
 
@@ -134,5 +174,38 @@ class Behat implements \PHPCI\Plugin
         $errorCount = count($data);
 
         return array($errorCount, $data);
+    }
+
+    /**
+     * Run the tests defined in a Behat config file.
+     * @param $configPath
+     * @return bool|mixed
+     */
+    protected function runConfigFile($configPath)
+    {
+        if (is_array($configPath)) {
+            return $this->recurseArg($configPath, array($this, "runConfigFile"));
+        } else {
+            $behat = $this->executable;
+
+            $cmd = $behat . ' --config ' . $configPath . ' %s';
+            $success = $this->phpci->executeCommand($cmd, $this->features);
+
+            return $success;
+        }
+    }
+
+    /**
+     * @param $array
+     * @param $callable
+     * @return bool|mixed
+     */
+    protected function recurseArg($array, $callable)
+    {
+        $success = true;
+        foreach ($array as $subItem) {
+            $success &= call_user_func($callable, $subItem);
+        }
+        return $success;
     }
 }
