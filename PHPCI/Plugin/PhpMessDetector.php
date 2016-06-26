@@ -56,6 +56,12 @@ class PhpMessDetector implements PHPCI\Plugin, PHPCI\ZeroConfigPlugin
     protected $rules;
 
     /**
+     * Path to ruleset xml file (if specified will be used instead of rules array)
+     * @var string
+     */
+    protected $ruleSet;
+
+    /**
      * Check if this plugin can be executed.
      * @param $stage
      * @param Builder $builder
@@ -99,6 +105,10 @@ class PhpMessDetector implements PHPCI\Plugin, PHPCI\ZeroConfigPlugin
 
         if (!empty($options['path'])) {
             $this->path = $options['path'];
+        }
+
+        if (!empty($options['ruleset'])) {
+            $this->ruleSet = $options['ruleset'];
         }
 
         if (array_key_exists('allowed_warnings', $options)) {
@@ -227,7 +237,7 @@ class PhpMessDetector implements PHPCI\Plugin, PHPCI\ZeroConfigPlugin
         $this->phpci->executeCommand(
             $cmd,
             $path,
-            implode(',', $this->rules),
+            $this->ruleSet ? $this->ruleSet : implode(',', $this->rules),
             $ignore,
             $suffixes
         );
